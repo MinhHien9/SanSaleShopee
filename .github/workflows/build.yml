@@ -18,12 +18,9 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          accept-android-sdk-licenses: true
-
       - name: Generate Android Project Structure & Build APK
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
         run: |
           mkdir -p app/src/main/java/com/sansale/shopee
           mkdir -p app/src/main/res/xml
