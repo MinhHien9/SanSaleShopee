@@ -21,8 +21,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          accept-licenses: true
-          cmdline-tools-version: "11.0"
+          accept-android-sdk-licenses: true
 
       - name: Generate Android Project Structure & Build APK
         run: |
