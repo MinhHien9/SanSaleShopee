@@ -47,6 +47,10 @@ class SanSaleService : AccessibilityService() {
     @Volatile private var timeOffset: Long = 0
     @Volatile private var isRunning = false
     private var isMinimized = false
+    
+    // false = Chế độ X:59:59.980 | true = Chế độ X:00:00.000
+    private var isZeroMode = false 
+
     private val mainHandler = Handler(Looper.getMainLooper())
     private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
     private val miniTimeFormat = SimpleDateFormat("HH:mm:ss.S", Locale.getDefault())
@@ -59,7 +63,6 @@ class SanSaleService : AccessibilityService() {
 
     private var tvCoordInfo: TextView? = null
 
-    // Bộ đếm cập nhật đồng hồ trực quan liên tục mỗi 33ms (~30 FPS)
     private val clockRunnable = object : Runnable {
         override fun run() {
             val nowShopee = System.currentTimeMillis() + timeOffset
@@ -113,8 +116,8 @@ class SanSaleService : AccessibilityService() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 80
-            y = 160
+            x = 70
+            y = 150
         }
 
         floatView = LinearLayout(this).apply {
@@ -144,17 +147,17 @@ class SanSaleService : AccessibilityService() {
                 cornerRadius = 26f
                 setStroke(2, Color.parseColor("#55FFFFFF"))
             }
-            setPadding(26, 20, 26, 20)
+            setPadding(24, 18, 24, 18)
         }
 
-        // MÀN HÌNH ĐỒNG HỒ LED TRỰC QUAN (Giữ vào đồng hồ này để kéo bảng)
+        // MÀN HÌNH ĐỒNG HỒ LED TRỰC QUAN
         tvLiveClock = TextView(this).apply {
             text = "⏱ 00:00:00.000"
             setTextColor(Color.parseColor("#00FF66"))
-            textSize = 19f
+            textSize = 18.5f
             typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
             gravity = Gravity.CENTER
-            setPadding(16, 10, 16, 10)
+            setPadding(14, 8, 14, 8)
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#FF000000"))
                 cornerRadius = 14f
@@ -163,10 +166,10 @@ class SanSaleService : AccessibilityService() {
         }
 
         val tvStatus = TextView(this).apply {
-            text = "Chưa đồng bộ (Giữ đồng hồ trên để kéo)"
+            text = "Chế độ: X:59:59.980 (Giữ đồng hồ để kéo)"
             setTextColor(Color.parseColor("#FFD54F"))
             textSize = 11f
-            setPadding(0, 8, 0, 2)
+            setPadding(0, 6, 0, 2)
         }
 
         tvCoordInfo = TextView(this).apply {
@@ -176,13 +179,19 @@ class SanSaleService : AccessibilityService() {
             setPadding(0, 2, 0, 4)
         }
 
+        // Hàng chỉnh giờ + Nút chuyển đổi 2 chế độ (59:59 <-> 00:00)
         val rowTime = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
 
+        val btnToggleMode = Button(this).apply {
+            text = "⚡ 59:59"
+            textSize = 10f
+        }
+
         val lblHour = TextView(this).apply {
-            text = "Hẹn giờ(X): "
+            text = " X:"
             setTextColor(Color.WHITE)
             textSize = 12f
         }
@@ -193,11 +202,12 @@ class SanSaleService : AccessibilityService() {
             setTextColor(Color.YELLOW)
             textSize = 13f
             inputType = InputType.TYPE_CLASS_NUMBER
-            width = 95
+            width = 85
+            gravity = Gravity.CENTER
         }
 
-        val lblMin = TextView(this).apply {
-            text = " :59:59."
+        val lblMinSec = TextView(this).apply {
+            text = ":59:59."
             setTextColor(Color.WHITE)
             textSize = 12f
         }
@@ -207,15 +217,17 @@ class SanSaleService : AccessibilityService() {
             setTextColor(Color.YELLOW)
             textSize = 13f
             inputType = InputType.TYPE_CLASS_NUMBER
-            width = 125
+            width = 110
+            gravity = Gravity.CENTER
         }
 
+        rowTime.addView(btnToggleMode)
         rowTime.addView(lblHour)
         rowTime.addView(edtHour)
-        rowTime.addView(lblMin)
+        rowTime.addView(lblMinSec)
         rowTime.addView(edtMs)
 
-        // Hàng nút chức năng 1: Giờ Shopee Ẩn danh | Giờ Máy | Tâm ngắm
+        // Hàng nút chức năng 1: Giờ Shopee | Giờ Máy | Tâm ngắm
         val rowBtn1 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
         }
@@ -239,13 +251,13 @@ class SanSaleService : AccessibilityService() {
         rowBtn1.addView(btnLocalTime)
         rowBtn1.addView(btnMarker)
 
-        // Hàng nút chức năng 2: Bắt đầu chạy | Thu gọn
+        // Hàng nút chức năng 2: Chạy | Thu gọn | Tắt hẳn App
         val rowBtn2 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
         }
 
         val btnStart = Button(this).apply {
-            text = "▶ BẮT ĐẦU CHẠY"
+            text = "▶ CHẠY"
             textSize = 11f
         }
 
@@ -254,8 +266,15 @@ class SanSaleService : AccessibilityService() {
             textSize = 10f
         }
 
+        val btnExit = Button(this).apply {
+            text = "✖ Tắt App"
+            textSize = 10f
+            setTextColor(Color.parseColor("#FF5252"))
+        }
+
         rowBtn2.addView(btnStart)
         rowBtn2.addView(btnMinimize)
+        rowBtn2.addView(btnExit)
 
         mainPanel?.addView(tvLiveClock)
         mainPanel?.addView(tvStatus)
@@ -282,18 +301,43 @@ class SanSaleService : AccessibilityService() {
         edtHour.setOnClickListener { enableKeyboard() }
         edtMs.setOnClickListener { enableKeyboard() }
 
-        // Cho phép nắm giữ vào Đồng hồ hoặc dòng Trạng thái để kéo bảng đi
         setupDrag(tvLiveClock!!, params, floatView!!, null)
         setupDrag(tvStatus, params, floatView!!, null)
 
-        // Kéo thả nút thu gọn và chạm nhẹ để mở rộng lại bảng
         setupDrag(miniBtn!!, params, floatView!!) {
             isMinimized = false
             miniBtn?.visibility = View.GONE
             mainPanel?.visibility = View.VISIBLE
         }
 
-        // NÚT ĐỒNG BỘ GIỜ SHOPEE ẨN DANH (Stealth Mode - Không gửi Cookie/Token tài khoản)
+        // Hàm tự động cập nhật giờ X theo chế độ đang chọn (59:59 hay 00:00)
+        val updateDefaultHourAndMode = {
+            val cal = Calendar.getInstance().apply { timeInMillis = System.currentTimeMillis() + timeOffset }
+            val h = cal.get(Calendar.HOUR_OF_DAY)
+            if (isZeroMode) {
+                btnToggleMode.text = "⚡ 00:00"
+                lblMinSec.text = ":00:00."
+                edtMs.setText("000")
+                edtHour.setText(((h + 1) % 24).toString()) // Tự động gợi ý giờ kế tiếp (VD: 23h -> 0h)
+            } else {
+                btnToggleMode.text = "⚡ 59:59"
+                lblMinSec.text = ":59:59."
+                edtMs.setText("980")
+                edtHour.setText(h.toString())
+            }
+        }
+
+        // SỰ KIỆN CHUYỂN ĐỔI XEN KẼ 2 OPTION: X:59:59.980 <-> X:00:00.000
+        btnToggleMode.setOnClickListener {
+            params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            windowManager?.updateViewLayout(floatView, params)
+            isZeroMode = !isZeroMode
+            updateDefaultHourAndMode()
+            val modeDesc = if (isZeroMode) "X:00:00.000 (Đúng 0h)" else "X:59:59.980 (Trước 0h)"
+            tvStatus.text = "Đã chọn: $modeDesc"
+        }
+
+        // NÚT ĐỒNG BỘ GIỜ SHOPEE ẨN DANH
         btnSyncShopee.setOnClickListener {
             params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
             windowManager?.updateViewLayout(floatView, params)
@@ -304,7 +348,6 @@ class SanSaleService : AccessibilityService() {
                 var rtt = 0L
                 var sourceName = ""
 
-                // Nhánh 1: Đọc API Timestamp ẩn danh với Header giả lập trình duyệt Chrome chuẩn
                 val apiUrls = listOf(
                     "https://shopee.vn/api/v4/client/timestamp",
                     "https://mall.shopee.vn/api/v4/client/timestamp"
@@ -318,9 +361,6 @@ class SanSaleService : AccessibilityService() {
                         conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 15; OPPO Find X9 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36")
                         conn.setRequestProperty("Accept", "application/json, text/plain, */*")
                         conn.setRequestProperty("Accept-Language", "vi-VN,vi;q=0.9")
-                        conn.setRequestProperty("Sec-Fetch-Dest", "empty")
-                        conn.setRequestProperty("Sec-Fetch-Mode", "cors")
-                        conn.setRequestProperty("Sec-Fetch-Site", "same-origin")
                         conn.connectTimeout = 2500
                         conn.readTimeout = 2500
 
@@ -331,7 +371,6 @@ class SanSaleService : AccessibilityService() {
                             val dataObj = JSONObject(res).optJSONObject("data")
                             if (dataObj != null && dataObj.has("timestamp")) {
                                 val rawTs = dataObj.getLong("timestamp")
-                                // Nếu Shopee trả về giây (10 chữ số) thì nhân 1000, nếu mili-giây (13 chữ số) thì giữ nguyên
                                 val serverTs = if (rawTs < 10000000000L) rawTs * 1000L + 500L else rawTs
                                 timeOffset = (serverTs + rtt) - t2
                                 sourceName = "Shopee API"
@@ -343,7 +382,6 @@ class SanSaleService : AccessibilityService() {
                     } catch (_: Exception) {}
                 }
 
-                // Nhánh 2: Đọc HTTP Date Header trực tiếp từ trang chủ Shopee.vn (Tường lửa không bao giờ chặn)
                 if (!synced) {
                     try {
                         val t1 = System.currentTimeMillis()
@@ -360,9 +398,7 @@ class SanSaleService : AccessibilityService() {
 
                         if (dateHeader > 0) {
                             rtt = (t2 - t1) / 2
-                            // Bù 500ms trung bình cho độ phân giải giây của HTTP Date Header
                             val estimatedServerTs = dateHeader + 500L
-                            // Nếu độ lệch với đồng hồ máy dưới 1.5 giây thì giữ phần lẻ mili-giây cực chuẩn của nhà mạng
                             val rawDiff = (estimatedServerTs + rtt) - t2
                             timeOffset = if (kotlin.math.abs(rawDiff) < 1200) 0L else rawDiff
                             sourceName = "Shopee Server"
@@ -371,7 +407,6 @@ class SanSaleService : AccessibilityService() {
                     } catch (_: Exception) {}
                 }
 
-                // Nhánh 3: Dự phòng Cloudflare Việt Nam nếu mạng chặn tên miền
                 if (!synced) {
                     try {
                         val t1 = System.currentTimeMillis()
@@ -387,17 +422,16 @@ class SanSaleService : AccessibilityService() {
                             val serverTs = (tsDouble * 1000.0).toLong()
                             rtt = (t2 - t1) / 2
                             timeOffset = (serverTs + rtt) - t2
-                            sourceName = "Giờ VN (ミリ秒)"
+                            sourceName = "Giờ VN Chuẩn"
                             synced = true
                         }
                     } catch (_: Exception) {}
                 }
 
                 mainHandler.post {
-                    val cal = Calendar.getInstance().apply { timeInMillis = System.currentTimeMillis() + timeOffset }
-                    edtHour.setText(cal.get(Calendar.HOUR_OF_DAY).toString())
+                    updateDefaultHourAndMode()
                     if (synced) {
-                        tvStatus.text = "✓ $sourceName | Lệch: ${timeOffset}ms | Ping: ${rtt * 2}ms"
+                        tvStatus.text = "✓ $sourceName | Lệch: ${timeOffset}ms \vert{} Ping:${rtt * 2}ms"
                     } else {
                         timeOffset = 0
                         tvStatus.text = "Đang dùng Giờ Máy (Lệch: 0ms)"
@@ -406,23 +440,22 @@ class SanSaleService : AccessibilityService() {
             }
         }
 
-        // Nút 1B: Dùng Giờ Điện Thoại
+        // Nút Dùng Giờ Điện Thoại
         btnLocalTime.setOnClickListener {
             params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
             windowManager?.updateViewLayout(floatView, params)
             timeOffset = 0
-            val h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-            edtHour.setText(h.toString())
+            updateDefaultHourAndMode()
             tvStatus.text = "✓ Đang dùng Giờ Máy (Offline 100%)"
         }
 
-        // Nút 2: Bật/Tắt Tâm ngắm tọa độ
+        // Nút Bật/Tắt Tâm ngắm tọa độ
         btnMarker.setOnClickListener {
             toggleMarkers()
             btnMarker.text = if (markersVisible) "Tâm: Bật" else "Tâm: Tắt"
         }
 
-        // Nút 3: Thu gọn thành đồng hồ mini
+        // Nút Thu gọn thành đồng hồ mini
         btnMinimize.setOnClickListener {
             params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
             windowManager?.updateViewLayout(floatView, params)
@@ -431,14 +464,19 @@ class SanSaleService : AccessibilityService() {
             miniBtn?.visibility = View.VISIBLE
         }
 
-        // Nút 4: Chạy hẹn giờ
+        // NÚT TẮT HẲN ỨNG DỤNG (KẾT THÚC HOÀN TOÀN)
+        btnExit.setOnClickListener {
+            shutdownApp()
+        }
+
+        // Nút Bắt đầu chạy hẹn giờ (Hỗ trợ cả 2 chế độ X:59:59.980 và X:00:00.000)
         btnStart.setOnClickListener {
             params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
             windowManager?.updateViewLayout(floatView, params)
 
             if (isRunning) {
                 isRunning = false
-                btnStart.text = "▶ BẮT ĐẦU CHẠY"
+                btnStart.text = "▶ CHẠY"
                 tvStatus.text = "Đã hủy hẹn giờ"
                 return@setOnClickListener
             }
@@ -448,24 +486,28 @@ class SanSaleService : AccessibilityService() {
                 btnMarker.text = "Tâm: Tắt"
             }
 
-            val targetHour = edtHour.text.toString().toIntOrNull() ?: 23
-            val targetMs = edtMs.text.toString().toIntOrNull() ?: 980
+            val targetHour = (edtHour.text.toString().toIntOrNull() ?: 0).coerceIn(0, 23)
+            val targetMs = (edtMs.text.toString().toIntOrNull() ?: 0).coerceIn(0, 999)
+            val targetMinSec = if (isZeroMode) 0 else 59
+            val minSecLabel = if (isZeroMode) "00:00" else "59:59"
+            val msFormatted = String.format(Locale.US, "%03d", targetMs)
 
             isRunning = true
-            btnStart.text = "⏹ HỦY CHẠY"
-            tvStatus.text = "Đang canh: $targetHour:59:59.$targetMs"
+            btnStart.text = "⏹ HỦY"
+            tvStatus.text = "Đang canh: $targetHour:$minSecLabel.$msFormatted"
 
             thread {
                 val now = System.currentTimeMillis() + timeOffset
                 val cal = Calendar.getInstance().apply {
                     timeInMillis = now
                     set(Calendar.HOUR_OF_DAY, targetHour)
-                    set(Calendar.MINUTE, 59)
-                    set(Calendar.SECOND, 59)
+                    set(Calendar.MINUTE, targetMinSec)
+                    set(Calendar.SECOND, targetMinSec)
                     set(Calendar.MILLISECOND, targetMs)
                 }
                 var targetTime = cal.timeInMillis
-                if (targetTime < now) {
+                // Nếu mốc thời gian đã qua trong hôm nay thì tự động hẹn sang ngày mai
+                if (targetTime <= now) {
                     targetTime += 24 * 60 * 60 * 1000L
                 }
 
@@ -488,8 +530,8 @@ class SanSaleService : AccessibilityService() {
 
                 isRunning = false
                 mainHandler.post {
-                    btnStart.text = "▶ BẮT ĐẦU CHẠY"
-                    tvStatus.text = "✓ Đã tắt Xu & bấm Đặt hàng!"
+                    btnStart.text = "▶ CHẠY"
+                    tvStatus.text = "✓ Đã bắn lúc $targetHour:$minSecLabel.$msFormatted!"
                 }
             }
         }
@@ -498,10 +540,30 @@ class SanSaleService : AccessibilityService() {
         windowManager?.addView(floatView, params)
     }
 
+    // Hàm đóng hoàn toàn ứng dụng và giải phóng toàn bộ tài nguyên
+    private fun shutdownApp() {
+        isRunning = false
+        mainHandler.removeCallbacks(clockRunnable)
+        if (markersVisible) {
+            toggleMarkers()
+        }
+        floatView?.let {
+            try { windowManager?.removeView(it) } catch (_: Exception) {}
+        }
+        floatView = null
+        Toast.makeText(this, "Đã tắt hoàn toàn Tool Săn Sale!", Toast.LENGTH_SHORT).show()
+        // Tự động ngắt Accessibility Service để kết thúc ứng dụng triệt để
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            disableSelf()
+        } else {
+            stopSelf()
+        }
+    }
+
     private fun toggleMarkers() {
         if (markersVisible) {
-            coinMarker?.let { windowManager?.removeView(it) }
-            orderMarker?.let { windowManager?.removeView(it) }
+            coinMarker?.let { try { windowManager?.removeView(it) } catch (_: Exception) {} }
+            orderMarker?.let { try { windowManager?.removeView(it) } catch (_: Exception) {} }
             coinMarker = null
             orderMarker = null
             markersVisible = false
@@ -535,102 +597,4 @@ class SanSaleService : AccessibilityService() {
 
         val tv = TextView(this).apply {
             text = label
-            setTextColor(Color.WHITE)
-            textSize = 10f
-            gravity = Gravity.CENTER
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(bgColor)
-                setStroke(4, Color.YELLOW)
-            }
-        }
-
-        var startX = 0
-        var startY = 0
-        var touchX = 0f
-        var touchY = 0f
-
-        tv.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    startX = params.x
-                    startY = params.y
-                    touchX = event.rawX
-                    touchY = event.rawY
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    params.x = startX + (event.rawX - touchX).toInt()
-                    params.y = startY + (event.rawY - touchY).toInt()
-                    windowManager?.updateViewLayout(tv, params)
-                    val centerX = params.x + markerSize / 2f
-                    val centerY = params.y + markerSize / 2f
-                    onMoved(centerX, centerY)
-                    true
-                }
-                else -> false
-            }
-        }
-
-        windowManager?.addView(tv, params)
-        return tv
-    }
-
-    private fun updateCoordText() {
-        tvCoordInfo?.text = "Xu:(${coinX.toInt()},${coinY.toInt()}) | Đặt:(${orderX.toInt()},${orderY.toInt()})"
-    }
-
-    private fun setupDrag(handleView: View, params: WindowManager.LayoutParams, rootView: View, onClick: (() -> Unit)?) {
-        var initialX = 0
-        var initialY = 0
-        var initialTouchX = 0f
-        var initialTouchY = 0f
-
-        handleView.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    initialX = params.x
-                    initialY = params.y
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    params.x = initialX + (event.rawX - initialTouchX).toInt()
-                    params.y = initialY + (event.rawY - initialTouchY).toInt()
-                    windowManager?.updateViewLayout(rootView, params)
-                    true
-                }
-                MotionEvent.ACTION_UP -> {
-                    val dx = kotlin.math.abs(event.rawX - initialTouchX)
-                    val dy = kotlin.math.abs(event.rawY - initialTouchY)
-                    if (dx < 12 && dy < 12) {
-                        onClick?.invoke()
-                    }
-                    true
-                }
-                else -> false
-            }
-        }
-    }
-
-    private fun humanTap(x: Float, y: Float) {
-        val jitterX = (x + Random.nextInt(-3, 4)).coerceAtLeast(1f)
-        val jitterY = (y + Random.nextInt(-3, 4)).coerceAtLeast(1f)
-        val duration = Random.nextLong(20, 36)
-
-        val path = Path().apply { moveTo(jitterX, jitterY) }
-        val stroke = GestureDescription.StrokeDescription(path, 0, duration)
-        val gesture = GestureDescription.Builder().addStroke(stroke).build()
-        dispatchGesture(gesture, null, null)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        mainHandler.removeCallbacks(clockRunnable)
-        try { unregisterReceiver(showReceiver) } catch (_: Exception) {}
-    }
-
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
-    override fun onInterrupt() {}
-}
+            setTextColor(
