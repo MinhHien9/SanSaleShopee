@@ -18,7 +18,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Generate Android Project Structure & Build APK
+      - name: Generate Android Project & Build Signed Release APK
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
         run: |
@@ -28,6 +28,9 @@ jobs:
 
           mv MainActivity.kt app/src/main/java/com/sansale/shopee/
           mv SanSaleService.kt app/src/main/java/com/sansale/shopee/
+
+          # Tạo chữ ký số chuẩn (Keystore) để OPPO/Android 15+ cho phép cài đặt
+          keytool -genkey -v -keystore release.keystore -alias sansale -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=SanSale, OU=App, O=ShopeeTool, L=HCM, S=HCM, C=VN"
 
           cat << 'EOF' > settings.gradle
           pluginManagement {
@@ -69,11 +72,27 @@ jobs:
               namespace 'com.sansale.shopee'
               compileSdk 34
               defaultConfig {
-                  applicationId "com.sansale.shopee"
+                  applicationId "com.sansale.shopee.pro"
                   minSdk 26
                   targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
+                  versionCode 2
+                  versionName "2.0"
+              }
+              signingConfigs {
+                  release {
+                      storeFile file("../release.keystore")
+                      storePassword "123456"
+                      keyAlias "sansale"
+                      keyPassword "123456"
+                      v1SigningEnabled true
+                      v2SigningEnabled true
+                  }
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                      signingConfig signingConfigs.release
+                  }
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
@@ -109,6 +128,7 @@ jobs:
               <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
               <application
                   android:label="@string/app_name"
+                  android:icon="@android:drawable/sym_def_app_icon"
                   android:theme="@android:style/Theme.DeviceDefault.Light.DarkActionBar">
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
@@ -133,10 +153,10 @@ jobs:
 
           gradle wrapper --gradle-version 8.6
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: SanSaleShopee-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: SanSaleShopee-Release-APK
+          path: app/build/outputs/apk/release/app-release.apk
