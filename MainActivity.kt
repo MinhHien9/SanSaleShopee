@@ -22,8 +22,11 @@ class MainActivity : Activity() {
         }
 
         val info = TextView(this).apply {
-            text = "TOOL SĂN SALE SHOPEE\n(Tắt Xu: 1140, 895 -> Đặt hàng)\n\nHướng dẫn: Hãy cấp đủ 2 quyền bên dưới để hiện bảng điều khiển nổi."
-            textSize = 16f
+            text = "TOOL SĂN SALE SHOPEE v3.0 (AN TOÀN)\n\n" +
+                   "• Đồng bộ giờ chuẩn VN / Giờ máy (Không chạm API Shopee)\n" +
+                   "• Có Tâm ngắm kéo thả trực tiếp vào nút Xu & Đặt hàng\n" +
+                   "• Thu gọn thành icon nổi không lo bị mất bảng"
+            textSize = 15f
             setPadding(0, 0, 0, 40)
         }
 
@@ -39,16 +42,25 @@ class MainActivity : Activity() {
         }
 
         val btnAccess = Button(this).apply {
-            text = "2. Bật Dịch vụ Trợ năng (Để hiện bảng nổi)"
+            text = "2. Bật Dịch vụ Trợ năng"
             setOnClickListener {
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                Toast.makeText(context, "Hãy tìm 'Săn Sale Shopee' và Bật lên!", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Hãy bật 'Săn Sale Shopee' trong Trợ năng!", Toast.LENGTH_LONG).show()
+            }
+        }
+
+        val btnRestore = Button(this).apply {
+            text = "3. Hiện lại Bảng điều khiển (Nếu đã ẩn)"
+            setOnClickListener {
+                sendBroadcast(Intent("com.sansale.shopee.SHOW_PANEL").setPackage(packageName))
+                Toast.makeText(context, "Đã gửi lệnh hiện bảng điều khiển!", Toast.LENGTH_SHORT).show()
             }
         }
 
         layout.addView(info)
         layout.addView(btnOverlay)
         layout.addView(btnAccess)
+        layout.addView(btnRestore)
         setContentView(layout)
     }
 }
